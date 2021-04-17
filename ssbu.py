@@ -16,8 +16,8 @@ parser.add_argument('-et', '--end_template', type=str,
                     default='./template/end.png',
                     help='試合終了時を示すテンプレ画像')
 parser.add_argument('-c', '--codec', type=str,
-                    default="-movflags +faststart -c:a aac -profile:a aac_low -ac 2 -ar 48000"
-                    "-c:v h264_nvenc -vf yadif=0:-1:1 -profile:v high -bf 2 -g 30"
+                    default="-movflags +faststart -c:a aac -profile:a aac_low -ac 2 -ar 48000 " +
+                    "-c:v h264_nvenc -vf yadif=0:-1:1 -profile:v high -bf 2 -g 30 " +
                     "-coder 1 -b:v 10M -b:a 384k -pix_fmt yuv420p",
                     help='抽出後の動画エンコードオプション。デフォルトはGPUエンコード & YouTubeの推奨設定済み(10Mbps)')
 parser.add_argument('-i', '--interval', type=float,
