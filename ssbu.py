@@ -1,11 +1,12 @@
 import argparse
+import datetime
 import cv2
 import subprocess
-import sys
 from argparse import ArgumentParser
+from tqdm import tqdm
 
 # Installation
-# $ pip3 install opencv-python
+# $ pip3 install opencv-python tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument('input_movie', help='元動画ファイル')
@@ -18,7 +19,7 @@ parser.add_argument('-et', '--end_template', type=str,
 parser.add_argument('-c', '--codec', type=str,
                     default="-movflags +faststart -c:a aac -profile:a aac_low -ac 2 -ar 48000 " +
                     "-c:v h264_nvenc -vf yadif=0:-1:1 -profile:v high -bf 2 -g 30 " +
-                    "-coder 1 -b:v 10M -b:a 384k -pix_fmt yuv420p",
+                    "-coder 1 -b:v 10M -b:a 384k -pix_fmt yuv420p -loglevel error",
                     help='抽出後の動画エンコードオプション。デフォルトはGPUエンコード & YouTubeの推奨設定済み(10Mbps)')
 parser.add_argument('-i', '--interval', type=float,
                     default=1,
@@ -87,7 +88,7 @@ battles = []
 
 stime = 0
 etime = 0
-for i in range(int((frame_count / frame_rate)/MATCH_INTERVAL)):  # 指定した間隔秒(frame数)ごとに画像判定
+for i in tqdm(range(int((frame_count / frame_rate)/MATCH_INTERVAL)), desc="Analyzing video: "):  # 指定した間隔秒(frame数)ごとに画像判定
     # 現在秒と試合開始時間との差が最小試合時間よりも小さい場合は、処理をスキップ
     if (stime > 0) & (i*MATCH_INTERVAL - stime < MIN_BATTLE_TIME):
         continue
@@ -95,31 +96,22 @@ for i in range(int((frame_count / frame_rate)/MATCH_INTERVAL)):  # 指定した�
     video.set(cv2.CAP_PROP_POS_FRAMES, frame_rate * MATCH_INTERVAL * i)
     _, frame = video.read()  # 動画をフレームに読み込み
 
-    m1 = match(frame, start_template)
+    if stime <= etime:
+        m1 = match(frame, start_template)
 
-    if m1 >= THRESHOLD:  # 試合開始フレームに合致
-        # save_match_frame(frame, start_template, "test" +
-        #                  str(i*MATCH_INTERVAL) + ".png")
+        if m1 >= THRESHOLD:  # 試合開始フレームに合致
+            stime = i * MATCH_INTERVAL - 2
 
-        if etime > stime:
+    else:
+        m2 = match(frame, end_template)
+
+        if m2 >= THRESHOLD:  # 試合終了フレームに合致 -> 動画化
+            etime = i * MATCH_INTERVAL + 2
             battles.append({"start": stime, "end": etime})
-            print("[Found!] start: " + str(stime) + ", end: " + str(etime))
+            tqdm.write("[Found!] " + str(datetime.timedelta(seconds=stime)
+                                         ) + " - " + str(datetime.timedelta(seconds=etime)))
 
-        stime = i * MATCH_INTERVAL
-        continue
-
-    m2 = match(frame, end_template)
-
-    if m2 >= THRESHOLD:  # 試合終了フレームに合致 複数回合致する場合あり
-        # save_match_frame(frame, end_template, "test" +
-        #                  str(i*MATCH_INTERVAL) + ".png")
-        etime = i*MATCH_INTERVAL
-
-if etime > stime:
-    battles.append({"start": stime, "end": etime})
-    print("[Found!] start: " + str(stime) + ", end: " + str(etime))
-
-for b in battles:
+for b in tqdm(battles, desc="Trimming video: "):
     save_match_video(
         VIDEO_FILE,                                         # 元動画ファイル
         b["start"],                                         # クリップ開始位置
